@@ -18,40 +18,7 @@ security = HTTPBearer()
 load_dotenv()
 
 crud.models.Base.metadata.create_all(bind=engine)
-OTHER_SERVER_URL = os.getenv("AI_SERVER_URL")
-
-async def forward_image(file: UploadFile, token: str):
-    await file.seek(0)  # Ensure file pointer is at start
-    async with httpx.AsyncClient() as client:
-        return await client.post(
-            OTHER_SERVER_URL,
-            files={"file": (file.filename, file.file, file.content_type)},
-            headers={"Authorization": f"Bearer {token}"}
-        )
-
-@app.post("/upload/")
-async def upload_image(token: str, file: UploadFile = File()):
-    """
-    Receives image and optionally a token, forwards to external server.
-    """
-    # Use either client-provided token or server-configured token
-    forward_token = token
-    
-    try:
-        response = await forward_image(file, forward_token)
-        response.raise_for_status()
-        return {"status": "success", "response": response.json()}
-    except httpx.HTTPStatusError as e:
-        return {"error": f"Server error: {e.response.text}", "code": e.response.status_code}
-    except Exception as e:
-        return {"error": str(e)}
-    finally:
-        await file.close()
-
-@app.post("/secure-upload/")
-async def secure_upload(file: UploadFile = File(...), credentials: HTTPBearer = Depends(security)):
-    """Version that uses Bearer token from Authorization header"""
-    return await upload_image(file=file, token=credentials.credentials)
+OTHER_SERVER_URL = os.getenv("AI_SERVER_URL", "")
 
 def get_db():
     db = SessionLocal()
@@ -62,6 +29,42 @@ def get_db():
 
 db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
+
+
+async def forward_image(payload: dict):
+    async with httpx.AsyncClient() as client:
+        return await client.post(
+            OTHER_SERVER_URL,
+            json=payload
+        )
+
+@app.post("/upload/")
+async def upload_image(token: str, db: db_dependency):
+    """
+    Receives image and optionally a token, forwards to external server.
+    """
+    # Use either client-provided token or server-configured token
+    forward_token = token
+    forward_id = db.query(crud.models.Cameras).filter(crud.models.Cameras.api == token).first()
+    if not forward_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Camera with this token is not found")
+    forward_id = forward_id.id
+    forward_config = db.query(crud.models.Cameras).filter(crud.models.Cameras.api == token).first().config
+
+    payload = {
+        "token": forward_token,
+        "camera_id": forward_id,
+        "config": forward_config
+    }
+    
+    try:
+        response = await forward_image(payload)
+        response.raise_for_status()
+        return {"status": "success", "response": response.json()}
+    except httpx.HTTPStatusError as e:
+        return {"error": f"Server error: {e.response.text}", "code": e.response.status_code}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.get("/", status_code=status.HTTP_200_OK)
