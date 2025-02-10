@@ -41,7 +41,7 @@ db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
 
 @app.post("/receive-image")
-async def receive_image(free: int = Form(...), occupied: int = Form(...), processing_time: float = Form(...),
+async def receive_image(db: db_dependency, free: int = Form(...), occupied: int = Form(...), processing_time: float = Form(...),
                         camera_id: int = Form(...), token: str = Form(...), image: UploadFile = File(...)):
     if os.getenv("MAIN_SERVER_KEY", "") != token:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tokens didn't match")
@@ -50,7 +50,7 @@ async def receive_image(free: int = Form(...), occupied: int = Form(...), proces
         if not image:
             raise HTTPException(400, "No image provided")
 
-        filename = os.path.basename(image.filename)
+        filename = os.path.basename(f'camera_{camera_id}')
 
         # Save the file
         file_path = UPLOAD_DIR / filename
@@ -59,6 +59,9 @@ async def receive_image(free: int = Form(...), occupied: int = Form(...), proces
         with open(file_path, "wb") as f:
             f.write(contents)
 
+        cur_parking_lot_id = db.query(crud.models.Cameras).filter(crud.models.Cameras.id == camera_id).first().parking_lot_id
+        cur_parking_lot = db.query(crud.models.ParkingLots).filter(crud.models.ParkingLots.id == cur_parking_lot_id).frist()
+        update_parking_lot_endpoint(cur_parking_lot_id, cur_parking_lot.name, cur_parking_lot.latitude, cur_parking_lot.longitude, cur_parking_lot.location_name, free, cur_parking_lot.capacity)
         
         return {
             "status": "success",
