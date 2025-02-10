@@ -39,7 +39,7 @@ db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
 
 @app.post("/receive-image")
-async def receive_image(free: int, occupied:int, processing_time: int, camera_id: int, token: str, file: UploadFile = File(...)):
+async def receive_image(free: int, occupied:int, processing_time: int, camera_id: int, token: str, db: db_dependency, file: UploadFile = File(...)):
     if os.getenv("MAIN_SERVER_KEY", "") != token:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tokens didn't match")
 
@@ -57,6 +57,8 @@ async def receive_image(free: int, occupied:int, processing_time: int, camera_id
         contents = await file.read()
         with open(file_path, "wb") as f:
             f.write(contents)
+
+        
 
         return {
             "status": "success",
