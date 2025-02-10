@@ -31,15 +31,17 @@ db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
 
 
-async def forward_image(payload: dict):
+async def forward_image(payload: dict, file: UploadFile):
+    await file.seek(0)
     async with httpx.AsyncClient() as client:
         return await client.post(
             OTHER_SERVER_URL,
-            json=payload
+            json=payload,
+            files={"image": (file.filename, file.file, file.content_type)}
         )
 
 @app.post("/upload/")
-async def upload_image(token: str, db: db_dependency):
+async def upload_image(token: str, db: db_dependency, file: UploadFile = File(...)):
     """
     Receives image and optionally a token, forwards to external server.
     """
@@ -54,17 +56,19 @@ async def upload_image(token: str, db: db_dependency):
     payload = {
         "token": forward_token,
         "camera_id": forward_id,
-        "config": forward_config
+        "config": forward_config,
     }
     
     try:
-        response = await forward_image(payload)
+        response = await forward_image(payload, file)
         response.raise_for_status()
         return {"status": "success", "response": response.json()}
     except httpx.HTTPStatusError as e:
         return {"error": f"Server error: {e.response.text}", "code": e.response.status_code}
     except Exception as e:
         return {"error": str(e)}
+    finally:
+        await file.close()
 
 
 @app.get("/", status_code=status.HTTP_200_OK)
