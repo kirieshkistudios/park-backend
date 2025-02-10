@@ -50,7 +50,7 @@ async def receive_image(db: db_dependency, free: int = Form(...), occupied: int 
         if not image:
             raise HTTPException(400, "No image provided")
 
-        filename = os.path.basename(f'camera_{camera_id}')
+        filename = os.path.basename(f'camera_{camera_id}.jpg')
 
         # Save the file
         file_path = UPLOAD_DIR / filename
