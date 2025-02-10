@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
+from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, Form
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 import psycopg2
@@ -10,6 +10,7 @@ import auth
 from auth import get_current_user
 import httpx, os
 from dotenv import load_dotenv
+from pathlib import Path
 
 app = FastAPI()
 app.include_router(auth.router)
@@ -19,6 +20,9 @@ load_dotenv()
 
 crud.models.Base.metadata.create_all(bind=engine)
 OTHER_SERVER_URL = os.getenv("AI_SERVER_URL", "")
+
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 def get_db():
     db = SessionLocal()
@@ -30,6 +34,36 @@ def get_db():
 db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
 
+@app.post("/receive-image")
+async def receive_image(free: int, occupied:int, processing_time: int, camera_id: int, token: str, file: UploadFile = File(...)):
+    try:
+        image = file
+        
+        if not image:
+            raise HTTPException(400, "No image provided")
+        
+        filename = os.path.basename(file.filename)
+    
+        # Save the file
+        file_path = UPLOAD_DIR / filename
+
+        contents = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(contents)
+        
+        return {
+            "status": "success",
+            "free": free,
+            "occupied": occupied,
+            "processing_time": processing_time,
+            "camera_id": camera_id,
+            "token": token,
+            "file_name": filename,
+            "file_path": file_path
+        }
+    
+    except Exception as e:
+        raise HTTPException(500, f"Error saving file: {str(e)}")
 
 async def forward_image(payload: dict, file: UploadFile):
     await file.seek(0)
@@ -40,7 +74,7 @@ async def forward_image(payload: dict, file: UploadFile):
             files={"image": (file.filename, file.file, file.content_type)}
         )
 
-@app.post("/upload/")
+@app.post("/upload")
 async def upload_image(token: str, db: db_dependency, file: UploadFile = File(...)):
     """
     Receives image and optionally a token, forwards to external server.
