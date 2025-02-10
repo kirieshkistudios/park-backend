@@ -1,3 +1,5 @@
+import json
+
 from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
@@ -19,6 +21,7 @@ load_dotenv()
 
 crud.models.Base.metadata.create_all(bind=engine)
 OTHER_SERVER_URL = os.getenv("AI_SERVER_URL", "")
+AI_SERVER_KEY = os.getenv("AI_SERVER_KEY", "")
 
 def get_db():
     db = SessionLocal()
@@ -34,10 +37,16 @@ user_dependency = Annotated[dict, Depends(get_current_user)]
 async def forward_image(payload: dict, file: UploadFile):
     await file.seek(0)
     async with httpx.AsyncClient() as client:
+        config_json = json.dumps(payload.get("config", {}))
+
         return await client.post(
             OTHER_SERVER_URL,
-            json=payload,
-            files={"image": (file.filename, file.file, file.content_type)}
+            data={
+                "token": payload["token"],
+                "camera_id": payload["camera_id"],
+                "config": config_json
+            },
+            files={"image": (file.filename, await file.read(), file.content_type)}
         )
 
 @app.post("/upload/")
@@ -46,7 +55,6 @@ async def upload_image(token: str, db: db_dependency, file: UploadFile = File(..
     Receives image and optionally a token, forwards to external server.
     """
     # Use either client-provided token or server-configured token
-    forward_token = token
     forward_id = db.query(crud.models.Cameras).filter(crud.models.Cameras.api == token).first()
     if not forward_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Camera with this token is not found")
@@ -54,7 +62,7 @@ async def upload_image(token: str, db: db_dependency, file: UploadFile = File(..
     forward_config = db.query(crud.models.Cameras).filter(crud.models.Cameras.api == token).first().config
 
     payload = {
-        "token": forward_token,
+        "token": AI_SERVER_KEY,
         "camera_id": forward_id,
         "config": forward_config,
     }
