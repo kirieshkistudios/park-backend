@@ -61,7 +61,7 @@ async def receive_image(db: db_dependency, free: int = Form(...), occupied: int 
 
         cur_parking_lot_id = db.query(crud.models.Cameras).filter(crud.models.Cameras.id == camera_id).first().parking_lot_id
         cur_parking_lot = db.query(crud.models.ParkingLots).filter(crud.models.ParkingLots.id == cur_parking_lot_id).first()
-        update_parking_lot_endpoint(cur_parking_lot_id, cur_parking_lot.name, cur_parking_lot.latitude, cur_parking_lot.longitude, cur_parking_lot.location_name, free, cur_parking_lot.capacity)
+        crud.update_parking_lot(cur_parking_lot_id, cur_parking_lot.name, cur_parking_lot.latitude, cur_parking_lot.longitude, cur_parking_lot.location_name, free, cur_parking_lot.capacity, db)
         
         return {
             "status": "success",
