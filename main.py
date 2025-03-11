@@ -14,8 +14,18 @@ from auth import get_current_user
 import httpx, os
 from dotenv import load_dotenv
 from pathlib import Path
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # В разработке можно использовать "*"
+    allow_credentials=True,
+    allow_methods=["*"],  # Разрешаем все методы
+    allow_headers=["*"],  # Разрешаем все заголовки
+)
+
 app.include_router(auth.router)
 security = HTTPBearer()
 

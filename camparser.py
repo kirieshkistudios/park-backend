@@ -1,60 +1,61 @@
-import re
-import requests
-import cv2
-import numpy as np
-import subprocess
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import time
+import os
 
-# Fetch the webpage HTML
-url = "https://mosday.ru/webcam/live.php?mitischi_im_perlovskiy"
-response = requests.get(url)
-html = response.text
+# Настройки
+URL = "https://sochi.camera/vse-kamery/dorogi/"
+SAVE_INTERVAL = 5  # Интервал в секундах
+OUTPUT_DIR = "z"
 
-# Search for the M3U8 URL in the HTML
-# Example pattern: look for URLs ending with .m3u8
-m3u8_url = 'https://www.intek-m.ru/live/st_perl/s.m3u8'
+# Создаем папку для сохранения кадров
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Configuration
-REFERER = "https://mosday.ru/webcam/live.php?mitischi_im_perlovskiy"
-FRAME_INTERVAL = 5  # Capture a frame every 5 seconds
 
-# FFmpeg command to stream with headers
-ffmpeg_cmd = [
-    'ffmpeg',
-    '-headers', f'Referer: {REFERER}',
-    '-i', m3u8_url,
-    '-f', 'image2pipe',  # Output to pipe
-    '-vf', f'fps=1/{FRAME_INTERVAL}',  # Capture 1 frame every X seconds
-    '-vcodec', 'rawvideo',
-    '-pix_fmt', 'bgr24',  # OpenCV uses BGR format
-    '-'
-]
+def setup_driver():
+    options = webdriver.ChromeOptions()
+    options.add_argument("--disable-infobars")
+    options.add_argument("--mute-audio")  # Отключаем звук
+    driver = webdriver.Chrome(options=options)
+    driver.set_window_size(1280, 720)  # Опционально: задаем размер окна
+    return driver
 
-# Start FFmpeg subprocess
-process = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
-# Read frames from the pipe
-frame_count = 0
-while True:
-    # Read raw frame bytes from FFmpeg
-    raw_frame = process.stdout.read(480 * 240 * 3)  # Adjust resolution if needed
-    if not raw_frame:
-        break
-    
-    # Convert bytes to a numpy array (OpenCV format)
-    frame = np.frombuffer(raw_frame, dtype=np.uint8).reshape((480, 240, 3))
-    
-    # Save the frame
-    filename = f"frame_{int(time.time())}.jpg"
-    cv2.imwrite(filename, frame)
-    print(f"Saved {filename}")
-    
-    # Optional: Display the frame
-    cv2.imshow('Frame', frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-    time.sleep(5)
+def capture_video_frames():
+    driver = setup_driver()
+    try:
+        driver.get(URL)
 
-# Cleanup
-process.terminate()
-cv2.destroyAllWindows()
+        # Ждем, пока видео загрузится
+        video_element = WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.TAG_NAME, "video"))
+        )
+
+        # Запускаем видео (если оно не autoplay)
+        driver.execute_script("arguments[0].play();", video_element)
+
+        frame_count = 0
+        while True:
+            # Делаем скриншот элемента <video>
+            screenshot = video_element.screenshot_as_png
+
+            # Сохраняем кадр
+            timestamp = int(time.time())
+            filename = os.path.join(OUTPUT_DIR, f"frame_{timestamp}.png")
+            with open(filename, "wb") as f:
+                f.write(screenshot)
+            print(f"Кадр сохранен: {filename}")
+
+            # Ждем указанный интервал
+            time.sleep(SAVE_INTERVAL)
+
+    except Exception as e:
+        print(f"Ошибка: {str(e)}")
+    finally:
+        driver.quit()
+
+
+if __name__ == "__main__":
+    capture_video_frames()
