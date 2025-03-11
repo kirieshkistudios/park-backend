@@ -14,10 +14,24 @@ from auth import get_current_user
 import httpx, os
 from dotenv import load_dotenv
 from pathlib import Path
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 app.include_router(auth.router)
 security = HTTPBearer()
+
+# Настройка CORS
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173"
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],  # Разрешить все методы
+    allow_headers=["*"],  # Разрешить все заголовки
+)
 
 load_dotenv()
 
