@@ -63,6 +63,7 @@ def create_access_token(username: str, user_id: int, expires_delta: timedelta):
     encode.update({'exp': expires})
     return jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
 
+@router.get("/me")
 async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)]):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -77,9 +78,9 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)]):
     
 user_dependency = Annotated[dict, Depends(get_current_user)]
 
+
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_user(db: db_dependency, create_user_request: CreateUserRequest, user: user_dependency):
-    print(user)
     cur = db.query(Users).filter(Users.id == user["id"]).first()
     if not cur.is_superior:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Do not have permission")

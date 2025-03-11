@@ -17,8 +17,6 @@ from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
-app.include_router(auth.router)
-security = HTTPBearer()
 
 # Настройка CORS
 origins = [
@@ -27,11 +25,14 @@ origins = [
 ]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # В разработке можно использовать "*"
     allow_credentials=True,
-    allow_methods=["*"],  # Разрешить все методы
-    allow_headers=["*"],  # Разрешить все заголовки
+    allow_methods=["*"],  # Разрешаем все методы
+    allow_headers=["*"],  # Разрешаем все заголовки
 )
+
+app.include_router(auth.router)
+security = HTTPBearer()
 
 load_dotenv()
 
