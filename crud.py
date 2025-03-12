@@ -56,3 +56,25 @@ def delete_camera(camera_id: int, db):
     result = db.query(models.Cameras).where(models.Cameras.id == camera_id).delete()
     db.commit()
     return result
+
+def read_user(user_id: int, db):
+    result = db.query(models.Users).filter(models.Users.id == user_id).first()
+    return result
+
+def read_all_users(db):
+    result = db.query(models.Users).all()
+    return result
+
+def update_user(user_id: int, username: str, password: str, is_superior: bool, db):
+    result = db.query(models.Users).filter(models.Users.id == user_id).update({"username": username, "hashed_password": password, "is_superior": is_superior})
+    if not result:
+        return None
+    db.commit()
+    return result
+
+def delete_user(user_id: int, db):
+    if not db.query(models.Users).where(models.Users.id == user_id).first():
+        return None
+    result = db.query(models.Users).where(models.Users.id == user_id).delete()
+    db.commit()
+    return result

@@ -7,10 +7,11 @@ from pydantic import BaseModel
 import psycopg2
 from typing import List, Annotated, Optional
 import crud
+import models
 from db_main import engine, SessionLocal
 from sqlalchemy.orm import Session
 import auth
-from auth import get_current_user
+from auth import get_current_user, bcrypt_context
 import httpx, os
 from dotenv import load_dotenv
 from pathlib import Path
@@ -154,18 +155,32 @@ async def read_all_parking_lots_endpoint(db: db_dependency):
         raise HTTPException(status_code=404, detail="no parking lots found")
     return result
 
+class CreateParkRequest(BaseModel):
+    name: str
+    latitude: float
+    longitude: float
+    location_name: str
+    free_spots: int
+    capacity: int
+
+class EditParkRequest(BaseModel):
+    parking_lot_id: int
+    name: str
+    latitude: float
+    longitude: float
+    location_name: str
+    free_spots: int
+    capacity: int
 
 @app.post("/parking_lots")
-async def create_parking_lot_endpoint(name: str, latitude: float, longitude: float, location_name: str, free_spots: int,
-                                      capacity: int, db: db_dependency, user: user_dependency):
-    crud.create_parking_lot(name, latitude, longitude, location_name, free_spots, capacity, db)
+async def create_parking_lot_endpoint(createpark: CreateParkRequest, db: db_dependency, user: user_dependency):
+    crud.create_parking_lot(createpark.name, createpark.latitude, createpark.longitude, createpark.location_name, createpark.free_spots, createpark.capacity, db)
 
 
 @app.post("/parking_lots/{parking_lot_id}")
-async def update_parking_lot_endpoint(parking_lot_id: int, name: str, latitude: float, longitude: float,
-                                      location_name: str, free_spots: int, capacity: int, db: db_dependency,
+async def update_parking_lot_endpoint(editpark: EditParkRequest, db: db_dependency,
                                       user: user_dependency):
-    result = crud.update_parking_lot(parking_lot_id, name, latitude, longitude, location_name, free_spots, capacity, db)
+    result = crud.update_parking_lot(editpark.parking_lot_id, editpark.name, editpark.latitude, editpark.longitude, editpark.location_name, editpark.free_spots, editpark.capacity, db)
     if not result:
         raise HTTPException(status_code=404, detail="parking lot is not found")
     return result
@@ -195,16 +210,29 @@ async def read_all_cameras_endpoint(db: db_dependency):
     return result
 
 
+class CreateCameraRequest(BaseModel):
+    name: str
+    parking_lot_id: int
+    api: str
+    config: str
+
+class EditCameraRequest(BaseModel):
+    camera_id: int
+    name: str
+    parking_lot_id: int
+    api: str
+    config: str
+
 @app.post("/cameras")
-async def create_camera_endpoint(name: str, parking_lot_id: int, api: str, config, db: db_dependency,
+async def create_camera_endpoint(createcamera: CreateCameraRequest, db: db_dependency,
                                  user: user_dependency):
-    crud.create_camera(name, parking_lot_id, api, config, db)
+    crud.create_camera(createcamera.name, createcamera.parking_lot_id, createcamera.api, createcamera.config, db)
 
 
 @app.post("/cameras/{camera_id}")
-async def update_camera_endpoint(camera_id: int, name: str, parking_lot_id: int, api: str, config, db: db_dependency,
+async def update_camera_endpoint(editcamera: EditCameraRequest, db: db_dependency,
                                  user: user_dependency):
-    result = crud.update_camera(camera_id, name, parking_lot_id, api, config, db)
+    result = crud.update_camera(editcamera.camera_id, editcamera.name, editcamera.parking_lot_id, editcamera.api, editcamera.config, db)
     if not result:
         raise HTTPException(status_code=404, detail="camera is not found")
     return result
@@ -215,4 +243,42 @@ async def delete_camera_endpoint(camera_id: int, db: db_dependency, user: user_d
     result = crud.delete_camera(camera_id=camera_id, db=db)
     if not result:
         raise HTTPException(status_code=404, detail="camera is not found")
+    return result
+
+
+@app.get("/users")
+async def read_all_users_endpoint(db: db_dependency, user: user_dependency):
+    result = crud.read_all_users(db)
+    if not result:
+        raise HTTPException(status_code=404, detail="no users found")
+    return result
+
+@app.get("/users/{user_id}")
+async def read_user_endpoint(db: db_dependency, user_id: int, user: user_dependency):
+    result = crud.read_user(user_id=user_id, db=db)
+    if not result:
+        raise HTTPException(status_code=404, detail="user is not found")
+    return result
+
+
+class EditUserRequest(BaseModel):
+    user_id: int
+    username: str
+    password: str
+    is_superior: bool
+
+
+@app.post("/users/{user_id}")
+async def update_user_endpoint(editrequest: EditUserRequest, db: db_dependency, user: user_dependency):
+    hashed_password = bcrypt_context.hash(editrequest.password)
+    result = crud.update_user(editrequest.user_id, editrequest.username, hashed_password, editrequest.is_superior, db)
+    if not result:
+        raise HTTPException(status_code=404, detail="user is not found")
+    return result
+
+@app.delete("/users/{user_id}")
+async def delete_user_endpoint(user_id: int, db: db_dependency, user: user_dependency):
+    result = crud.delete_user(user_id=user_id, db=db)
+    if not result:
+        raise HTTPException(status_code=404, detail="user is not found")
     return result
