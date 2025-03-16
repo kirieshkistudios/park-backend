@@ -42,6 +42,8 @@ load_dotenv()
 crud.models.Base.metadata.create_all(bind=engine)
 OTHER_SERVER_URL = os.getenv("AI_SERVER_URL", "")
 AI_SERVER_KEY = os.getenv("AI_SERVER_KEY", "")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -58,6 +60,21 @@ def get_db():
 db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
 
+async def create_first_admin(db: db_dependency):
+    admin = db.query(models.Users).filter(models.Users.is_superior == True).first()
+
+    if not admin:
+        # Используем ту же логику создания пользователя, что и в эндпоинте
+        hashed_password = bcrypt_context.hash(ADMIN_PASSWORD)
+        admin_user = models.Users(
+            username=ADMIN_USERNAME,
+            hashed_password=hashed_password,
+            is_superior=True
+        )
+
+        db.add(admin_user)
+        db.commit()
+        print("Initial admin user created successfully")
 
 @app.get("/images/{image_name}")
 async def get_image(image_name: str):
@@ -276,6 +293,7 @@ async def delete_camera_endpoint(camera_id: int, db: db_dependency, user: user_d
 
 @app.get("/users")
 async def read_all_users_endpoint(db: db_dependency, user: user_dependency):
+    create_first_admin()
     result = crud.read_all_users(db)
     if not result:
         raise HTTPException(status_code=404, detail="no users found")
