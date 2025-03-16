@@ -7,11 +7,19 @@ from starlette import status
 from db_main import SessionLocal
 from models import Users
 from passlib.context import CryptContext
+import bcrypt
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import jwt, JWTError
 
 from dotenv import load_dotenv
 import os
+from dataclasses import dataclass
+
+@dataclass
+class SolveBugBcryptWarning:
+    __version__: str = getattr(bcrypt, "__version__")
+
+setattr(bcrypt, "__about__", SolveBugBcryptWarning())
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 
