@@ -61,27 +61,6 @@ def get_db():
 db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
 
-@app.get("/create_admin")
-async def create_first_admin(db: db_dependency):
-    admin = db.query(models.Users).filter(models.Users.is_superior == True).first()
-
-    if not admin:
-        # Используем ту же логику создания пользователя, что и в эндпоинте
-        hashed_password = bcrypt_context.hash(ADMIN_PASSWORD)
-        admin_user = models.Users(
-            username=ADMIN_USERNAME,
-            hashed_password=hashed_password,
-            is_superior=True
-        )
-
-        db.add(admin_user)
-        db.commit()
-        print("Initial admin user created successfully")
-
-        return 1
-
-    return 0
-
 @app.get("/images/{image_name}")
 async def get_image(image_name: str):
     images_dir = Path("camera_snapshots")

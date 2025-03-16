@@ -90,7 +90,7 @@ user_dependency = Annotated[dict, Depends(get_current_user)]
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_user(db: db_dependency, create_user_request: CreateUserRequest, user: user_dependency):
     cur = db.query(Users).filter(Users.id == user["id"]).first()
-    if not cur.is_superior:
+    if not cur.is_superior and db.query(Users).count() > 0:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Do not have permission")
     create_user_model = Users(username=create_user_request.username, hashed_password=bcrypt_context.hash(create_user_request.password), is_superior=create_user_request.is_superior)
 
