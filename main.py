@@ -77,6 +77,10 @@ async def create_first_admin(db: db_dependency):
         db.commit()
         print("Initial admin user created successfully")
 
+        return 1
+
+    return 0
+
 @app.get("/images/{image_name}")
 async def get_image(image_name: str):
     images_dir = Path("camera_snapshots")
