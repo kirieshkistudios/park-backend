@@ -60,6 +60,7 @@ def get_db():
 db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
 
+@app.get("/create_admin")
 async def create_first_admin(db: db_dependency):
     admin = db.query(models.Users).filter(models.Users.is_superior == True).first()
 
@@ -293,7 +294,6 @@ async def delete_camera_endpoint(camera_id: int, db: db_dependency, user: user_d
 
 @app.get("/users")
 async def read_all_users_endpoint(db: db_dependency, user: user_dependency):
-    create_first_admin()
     result = crud.read_all_users(db)
     if not result:
         raise HTTPException(status_code=404, detail="no users found")
