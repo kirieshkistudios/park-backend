@@ -1,61 +1,65 @@
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import time
+from webdriver_manager.chrome import ChromeDriverManager
 import os
-
-# Настройки
-URL = "https://sochi.camera/vse-kamery/dorogi/"
-SAVE_INTERVAL = 5  # Интервал в секундах
-OUTPUT_DIR = "z"
-
-# Создаем папку для сохранения кадров
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+import time
 
 
-def setup_driver():
+def save_camera_frame(camera_id: str, url: str):
+    # Настройка браузера
     options = webdriver.ChromeOptions()
-    options.add_argument("--disable-infobars")
-    options.add_argument("--mute-audio")  # Отключаем звук
-    driver = webdriver.Chrome(options=options)
-    driver.set_window_size(1280, 720)  # Опционально: задаем размер окна
-    return driver
+    options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--autoplay-policy=no-user-gesture-required")
 
+    driver = webdriver.Chrome(
+        service=Service(ChromeDriverManager().install()),
+        options=options
+    )
 
-def capture_video_frames():
-    driver = setup_driver()
     try:
-        driver.get(URL)
+        driver.get(url)
 
-        # Ждем, пока видео загрузится
+        # Ожидаем появление видео элемента
         video_element = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.TAG_NAME, "video"))
         )
 
-        # Запускаем видео (если оно не autoplay)
-        driver.execute_script("arguments[0].play();", video_element)
+        # Пытаемся запустить видео через JavaScript
+        driver.execute_script("""
+            const video = arguments[0];
+            video.muted = true;  // Отключаем звук для автовоспроизведения
+            video.play().catch(() => {
+                video.setAttribute('controls', '');
+                video.play();
+            });
+        """, video_element)
 
-        frame_count = 0
-        while True:
-            # Делаем скриншот элемента <video>
-            screenshot = video_element.screenshot_as_png
+        # Ждем когда видео начнет воспроизводиться (currentTime > 0)
+        WebDriverWait(driver, 20).until(
+            lambda d: d.execute_script("return arguments[0].currentTime > 0", video_element)
+        )
 
-            # Сохраняем кадр
-            timestamp = int(time.time())
-            filename = os.path.join(OUTPUT_DIR, f"frame_{timestamp}.png")
-            with open(filename, "wb") as f:
-                f.write(screenshot)
-            print(f"Кадр сохранен: {filename}")
+        # Дополнительная задержка для стабилизации изображения
+        time.sleep(1)
 
-            # Ждем указанный интервал
-            time.sleep(SAVE_INTERVAL)
+        # Создаем папку для снимков
+        os.makedirs("camera_snapshots", exist_ok=True)
+        screenshot_path = os.path.join("camera_snapshots", f"{camera_id}.png")
+
+        # Делаем скриншот элемента
+        video_element.screenshot(screenshot_path)
+        print(f"Снимок сохранен: {screenshot_path}")
+        return True
 
     except Exception as e:
-        print(f"Ошибка: {str(e)}")
+        print(f"Ошибка для камеры {camera_id}: {str(e)}")
+        return False
+
     finally:
         driver.quit()
-
-
-if __name__ == "__main__":
-    capture_video_frames()
+        

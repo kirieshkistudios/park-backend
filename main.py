@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, Form
 import json
 
+from fastapi.responses import FileResponse
 from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
@@ -16,6 +17,7 @@ import httpx, os
 from dotenv import load_dotenv
 from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
+#import camparser
 
 app = FastAPI()
 
@@ -55,6 +57,22 @@ def get_db():
 
 db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
+
+
+@app.get("/images/{image_name}")
+async def get_image(image_name: str):
+    images_dir = Path("camera_snapshots")
+    image_path = images_dir / f'{image_name}.png'
+
+    # Проверяем существование файла и безопасность пути
+    if not image_path.exists() or not image_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Проверяем расширение файла
+    if image_path.suffix.lower() not in [".jpg", ".jpeg", ".png"]:
+        raise HTTPException(status_code=400, detail="Invalid image format")
+
+    return FileResponse(image_path)
 
 
 @app.post("/receive-image")
@@ -108,7 +126,7 @@ async def forward_image(payload: dict, file: UploadFile):
 
 
 @app.post("/upload")
-async def upload_image(token: str, db: db_dependency, file: UploadFile = File(...)):
+async def upload_image(db: db_dependency, token: str = Form(...), file: UploadFile = File(...)):
     """
     Receives image and optionally a token, forwards to external server.
     """
@@ -143,6 +161,11 @@ async def user(user: user_dependency, db: db_dependency):
     if user is None:
         raise HTTPException(status_code=401, detail='auth failed')
     return {"User": user}
+
+
+@app.get('/camscreen')
+async def getscreen(url, user: user_dependency):
+    return camparser.capture_video_frames(url)
 
 
 @app.get("/parking_lots/{parking_lot_id}")
