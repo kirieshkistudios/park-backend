@@ -63,8 +63,9 @@ user_dependency = Annotated[dict, Depends(get_current_user)]
 
 @app.get("/images/{image_name}")
 async def get_image(image_name: str):
-    images_dir = Path("camera_snapshots")
-    image_path = images_dir / f'{image_name}.png'
+    images_dir = Path("uploads")
+    image_path = images_dir / f'{image_name}'
+    
 
     # Проверяем существование файла и безопасность пути
     if not image_path.exists() or not image_path.is_file():
